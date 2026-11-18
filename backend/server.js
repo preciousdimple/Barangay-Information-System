@@ -230,6 +230,7 @@ const AUTO_PREFIX = { blotter: ["caseNo", "BL"], certificates: ["controlNo", "CE
 
 app.get("/api/test", async (req, res) => {
   try {
+    if (!pool) return res.status(500).json({ message: "Database pool not initialized." });
     await pool.query("SELECT 1");
     res.json({ message: "BIS API and MySQL are connected." });
   } catch (error) {
@@ -240,6 +241,7 @@ app.get("/api/test", async (req, res) => {
 
 app.get("/api/stats", async (req, res) => {
   try {
+    if (!pool) return res.status(500).json({ message: "Database pool not initialized." });
     const one = async (sql) => (await pool.query(sql))[0][0].n;
     const [byPurok] = await pool.query(
       "SELECT IF(purok='', 'Unassigned', purok) AS purok, COUNT(*) AS total FROM residents WHERE status='Active' GROUP BY purok ORDER BY purok");
@@ -268,6 +270,7 @@ function registerCrud(path, res) {
 
   app.get(base, async (req, rsp) => {
     try {
+      if (!pool) return rsp.status(500).json({ message: "Database pool not initialized." });
       const where = [];
       const params = [];
 
@@ -297,6 +300,7 @@ function registerCrud(path, res) {
 
   app.get(`${base}/:id`, async (req, rsp) => {
     try {
+      if (!pool) return rsp.status(500).json({ message: "Database pool not initialized." });
       const [rows] = await pool.query(`SELECT * FROM ${T} WHERE id = ?`, [req.params.id]);
       if (!rows.length) return rsp.status(404).json({ message: "Record not found." });
       rsp.json(rows[0]);
@@ -307,6 +311,7 @@ function registerCrud(path, res) {
   });
 
   app.post(base, async (req, rsp) => {
+    if (!pool) return rsp.status(500).json({ message: "Database pool not initialized." });
     let data;
     try { data = buildData(res, req.body || {}, false); }
     catch (e) { return rsp.status(400).json({ message: e.message }); }
@@ -330,6 +335,7 @@ function registerCrud(path, res) {
   });
 
   app.put(`${base}/:id`, async (req, rsp) => {
+    if (!pool) return rsp.status(500).json({ message: "Database pool not initialized." });
     let data;
     try { data = buildData(res, req.body || {}, true); }
     catch (e) { return rsp.status(400).json({ message: e.message }); }
@@ -353,6 +359,7 @@ function registerCrud(path, res) {
 
   app.delete(`${base}/:id`, async (req, rsp) => {
     try {
+      if (!pool) return rsp.status(500).json({ message: "Database pool not initialized." });
       const [result] = await pool.query(`DELETE FROM ${T} WHERE id = ?`, [req.params.id]);
       if (!result.affectedRows) return rsp.status(404).json({ message: "Record not found." });
       rsp.json({ message: "Record deleted.", id: Number(req.params.id) });
@@ -371,22 +378,23 @@ app.use("/api", (req, res) => {
 
 async function startServer() {
   try {
+    // Sinusubukan munang ikonekta ang database kung may environment variables na
     await initializeDatabase();
-    app.listen(PORT, () => {
-      console.log("===================================");
-      console.log("Barangay Information System server is running!");
-      console.log(`Server URL: http://localhost:${PORT}`);
-      console.log(`Test API:   http://localhost:${PORT}/api/test`);
-      console.log(`Stats API:  http://localhost:${PORT}/api/stats`);
-      console.log(`Endpoints:  /api/${Object.keys(RESOURCES).join(", /api/")}`);
-      console.log(`MySQL database: ${DB_NAME}`);
-      console.log("===================================");
-    });
   } catch (error) {
-    console.error("Cannot connect to MySQL:", error.message);
-    console.error("Check database credentials and Render environment variables.");
-    process.exit(1);
+    console.warn("⚠️ Warning: Database initialization skipped or failed for initial deployment:", error.message);
+    console.log("Server is running without an active database connection.");
   }
+
+  app.listen(PORT, () => {
+    console.log("===================================");
+    console.log("Barangay Information System server is running!");
+    console.log(`Server URL: http://localhost:${PORT}`);
+    console.log(`Test API:   http://localhost:${PORT}/api/test`);
+    console.log(`Stats API:  http://localhost:${PORT}/api/stats`);
+    console.log(`Endpoints:  /api/${Object.keys(RESOURCES).join(", /api/")}`);
+    console.log(`MySQL database: ${DB_NAME}`);
+    console.log("===================================");
+  });
 }
 
 startServer();
