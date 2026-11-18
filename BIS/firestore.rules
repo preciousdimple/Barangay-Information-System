@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admin_accounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_accounts/$(request.auth.uid)).data.role == 'superadmin'
+        && get(/databases/$(database)/documents/admin_accounts/$(request.auth.uid)).data.status == 'Active';
+    }
+
+    match /admin_accounts/{userId} {
+      // A signed-in user (email/password or Google) may create only their own ordinary Admin profile.
+      // Client-side requests cannot create a Super Admin.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'admin'
+        && request.resource.data.status == 'Active'
+        && request.resource.data.email == request.auth.token.email;
+
+      allow read: if signedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // Keep application records protected. Active Admins and Super Admins may
+    // work with barangay data; only Super Admins may change admin_accounts.
+    match /barangay_data/{document=**} {
+      allow read, write: if signedIn()
+        && exists(/databases/$(database)/documents/admin_accounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_accounts/$(request.auth.uid)).data.status == 'Active';
+    }
+  }
+}
