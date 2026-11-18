@@ -9,6 +9,7 @@ const DB_CONFIG = {
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
+  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
 };
 
 app.use(cors());
@@ -65,7 +66,7 @@ const RESOURCES = {
     table: "blotter",
     search: ["caseNo", "complainant", "respondent", "location"],
     fields: {
-      caseNo: { type: "string", unique: true, auto: true }, // generated: BL-YYYY-0001
+      caseNo: { type: "string", unique: true, auto: true },
       complainant: { type: "string", required: true },
       respondent: { type: "string", required: true },
       incidentDate: { type: "date", required: true },
@@ -78,7 +79,7 @@ const RESOURCES = {
     table: "certificates",
     search: ["controlNo", "residentName", "type", "purpose"],
     fields: {
-      controlNo: { type: "string", unique: true, auto: true }, // generated: CERT-YYYY-0001
+      controlNo: { type: "string", unique: true, auto: true },
       residentId: { type: "int", nullable: true },
       residentName: { type: "string", required: true },
       type: {
@@ -261,7 +262,6 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
-
 function registerCrud(path, res) {
   const base = `/api/${path}`;
   const T = `\`${res.table}\``;
@@ -321,7 +321,6 @@ function registerCrud(path, res) {
         `INSERT INTO ${T} (${cols.map((c) => `\`${c}\``).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
         cols.map((c) => data[c]));
       const [rows] = await pool.query(`SELECT * FROM ${T} WHERE id = ?`, [result.insertId]);
-      console.log(`${path} added - id:`, result.insertId);
       rsp.status(201).json(rows[0]);
     } catch (error) {
       if (error.code === "ER_DUP_ENTRY") return rsp.status(409).json({ message: "A record with that unique value already exists." });
@@ -344,7 +343,6 @@ function registerCrud(path, res) {
         [...cols.map((c) => data[c]), req.params.id]);
       if (!result.affectedRows) return rsp.status(404).json({ message: "Record not found." });
       const [rows] = await pool.query(`SELECT * FROM ${T} WHERE id = ?`, [req.params.id]);
-      console.log(`${path} updated - id:`, req.params.id);
       rsp.json(rows[0]);
     } catch (error) {
       if (error.code === "ER_DUP_ENTRY") return rsp.status(409).json({ message: "A record with that unique value already exists." });
@@ -357,7 +355,6 @@ function registerCrud(path, res) {
     try {
       const [result] = await pool.query(`DELETE FROM ${T} WHERE id = ?`, [req.params.id]);
       if (!result.affectedRows) return rsp.status(404).json({ message: "Record not found." });
-      console.log(`${path} deleted - id:`, req.params.id);
       rsp.json({ message: "Record deleted.", id: Number(req.params.id) });
     } catch (error) {
       console.error(`Delete ${path} error:`, error.message);
@@ -387,7 +384,7 @@ async function startServer() {
     });
   } catch (error) {
     console.error("Cannot connect to MySQL:", error.message);
-    console.error("Check XAMPP MySQL and database credentials.");
+    console.error("Check database credentials and Render environment variables.");
     process.exit(1);
   }
 }
